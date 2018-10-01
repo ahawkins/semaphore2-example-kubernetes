@@ -1,0 +1,51 @@
+version: "v1.0"
+name: First pipeline example
+agent:
+  machine:
+    type: e1-standard-2
+    os_image: ubuntu1804
+
+blocks:
+  - name: "Push Image"
+    task:
+      env_vars:
+        # TODO: fill in your values
+        - name: GCP_PROJECT_ID
+          value: slashdeploy-nonproduction
+      secrets:
+        - name: GCP
+      prologue:
+        commands:
+          - gcloud auth activate-service-account --key-file=.secrets.gcp_service_account.json
+          - gcloud auth configure-docker -q
+          - checkout
+      jobs:
+        - name: Docker build
+          commands:
+            - docker build -t "asia.gcr.io/${GCP_PROJECT_ID}/semaphore-example:${SEMAPHORE_GIT_SHA:0:7}" .
+            - docker push "asia.gcr.io/${GCP_PROJECT_ID}/semaphore-example:${SEMAPHORE_GIT_SHA:0:7}"
+  - name: Deploy to K8s
+    task:
+      env_vars:
+        # TODO: fill in your values
+        - name: GCP_PROJECT_ID
+          value: slashdeploy-nonproduction
+        - name: GKE_CLUSTER
+          value: semaphore-examples
+        - name: GKE_ZONE
+          value: asia-southeast1-a
+      secrets:
+        - name: GCP
+      prologue:
+        commands:
+          - gcloud auth activate-service-account --key-file=.secrets.gcp_service_account.json
+          - gcloud container clusters get-credentials "${GKE_CLUSTER}" --zone "${GKE_ZONE}" --project "${GCP_PROJECT_ID}"
+          - kubectl config get-contexts
+          - checkout
+      jobs:
+        - name: Apply K8s Manifest
+          commands:
+            - mkdir -p tmp
+            - env "DOCKER_IMAGE=asia.gcr.io/${GCP_PROJECT_ID}/semaphore-example:${SEMAPHORE_GIT_SHA:0:7}" envsubst '$DOCKER_IMAGE' < k8s/app.yml > tmp/manifest.yml
+            - cat tmp/manifest.yml
+            - kubectl apply -f tmp/manifest.yml

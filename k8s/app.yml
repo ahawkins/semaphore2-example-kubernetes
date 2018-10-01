@@ -1,0 +1,35 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: semaphore-example
+  labels:
+    app: semaphore-example
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: semaphore-example
+  template:
+    metadata:
+      labels:
+        app: semaphore-example
+    spec:
+      containers:
+      - name: app
+        image: "$DOCKER_IMAGE"
+        ports:
+          - containerPort: 8080
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: semaphore-example
+spec:
+  selector:
+    app: semaphore-example
+  type: LoadBalancer
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
